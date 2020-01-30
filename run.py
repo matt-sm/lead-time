@@ -1,13 +1,14 @@
-import csv
 from dateutil import parser
 from datetime import datetime, timedelta, timezone
 import requests
 import json
 import matplotlib.pyplot as plt
+import os
+import boto3
+from botocore.exceptions import ClientError
 
 plt.rcdefaults()
-import matplotlib.pyplot as plt
-import os
+s3_client = boto3.client("s3")
 
 MAPPINGS = {}
 
@@ -106,12 +107,17 @@ def calc_lead_times(deploys, commits):
 
 def plot_items(plots):
     for plot in plots:
+        filename = plot[2]
         plt.figure()
         plt.barh(*zip(*plot[0].items()))
         plt.title(plot[1])
         plt.tight_layout()
-
-    plt.show()
+        plt.savefig(filename)
+        with open(filename, "rb") as f:
+            try:
+                s3_client.upload_file(filename, os.environ["BUCKET_NAME"], filename)
+            except ClientError as e:
+                print(e)
 
 
 def key_to_value_lengths(items):
@@ -128,9 +134,9 @@ def main():
     lead_times = calc_lead_times(builds, commits)
     plot_items(
         [
-            (key_to_value_lengths(builds), "Deploy Frequency"),
-            (key_to_value_lengths(commits), "Commit Frequency"),
-            (lead_times, "Average Lead Time (days)"),
+            (key_to_value_lengths(builds), "Deploy Frequency", "freq.png"),
+            (key_to_value_lengths(commits), "Commit Frequency", "commit.png"),
+            (lead_times, "Average Lead Time (days)", "lead.png"),
         ]
     )
 
