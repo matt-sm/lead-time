@@ -12,6 +12,8 @@ s3_client = boto3.client("s3")
 
 MAPPINGS = {}
 
+TEMPLATE = f'<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>dashboard</title></head><body><img src="commit.png" /><img src="freq.png" /><img src="lead.png" /><div>Updated at {datetime.now()}</div></body></html>'
+
 
 def get_builds(url):
     payload = ""
@@ -105,6 +107,19 @@ def calc_lead_times(deploys, commits):
     return lead_times
 
 
+def upload_file_to_s3(filename):
+    with open(filename, "rb"):
+        try:
+            s3_client.upload_file(
+                filename,
+                os.environ["BUCKET_NAME"],
+                filename,
+                ExtraArgs={"ACL": "public-read", "ContentType": "text/html"},
+            )
+        except ClientError as e:
+            print(e)
+
+
 def plot_items(plots):
     for plot in plots:
         filename = plot[2]
@@ -113,11 +128,7 @@ def plot_items(plots):
         plt.title(plot[1])
         plt.tight_layout()
         plt.savefig(filename)
-        with open(filename, "rb") as f:
-            try:
-                s3_client.upload_file(filename, os.environ["BUCKET_NAME"], filename)
-            except ClientError as e:
-                print(e)
+        upload_file_to_s3(filename)
 
 
 def key_to_value_lengths(items):
@@ -139,6 +150,11 @@ def main():
             (lead_times, "Average Lead Time (days)", "lead.png"),
         ]
     )
+
+    with open("index.html", "w") as f:
+        f.write(TEMPLATE)
+
+    upload_file_to_s3("index.html")
 
 
 if __name__ == "__main__":
